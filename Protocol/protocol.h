@@ -53,9 +53,10 @@ public:
 
 	virtual void read(std::span<const uint8_t>& view);
 
+	inline const std::string& get_key() const { return key; }
+
 private:
-	ecommand_type type;
-	std::string   key;
+	std::string key;
 };
 
 class get_command : public command
@@ -99,6 +100,8 @@ public:
 
 	void read(std::span<const uint8_t>& view) override;
 
+	inline const std::string& get_value() const { return value; }
+
 private:
 	std::string value;
 };
@@ -107,20 +110,25 @@ using base_command_ptr = std::shared_ptr<base_command>;
 using get_command_ptr = std::shared_ptr<get_command>;
 using set_command_ptr = std::shared_ptr<set_command>;
 
-class get_command_response : public base_command
+class get_command_response : public command
 {
 public:
 	inline get_command_response(const get_command_ptr& cmd, const std::string& value, uint64_t reads, uint64_t writes)
-		: base_command(ecommand_type::GET_RESPONSE), request_id(cmd->request_id)
+		: command(ecommand_type::GET_RESPONSE, cmd->get_key()), request_id(cmd->request_id)
 		, value(value), reads(reads), writes(writes)
 	{}
 
-	inline get_command_response() : base_command(ecommand_type::GET_RESPONSE) {}
+	inline get_command_response() : command(ecommand_type::GET_RESPONSE) {}
 
 	std::vector<uint8_t> serialize          () const override;
 	size_t               get_serialized_size() const override;
 
 	void read(std::span<const uint8_t>& view) override;
+
+	inline uint16_t           get_request_id() const { return request_id; }
+	inline const std::string& get_value     () const { return value; }
+	inline uint64_t           get_reads     () const { return reads; }
+	inline uint64_t           get_writes    () const { return writes; }
 	
 private:
 	uint16_t request_id = 0;
@@ -132,18 +140,30 @@ private:
 
 using get_command_response_ptr = std::shared_ptr<get_command_response>;
 
+class i_socket
+{
+public:
+	virtual ~i_socket() = default;
+	
+	virtual void send(const base_command_ptr& cmd) = 0;
+};
+
 class i_server_dispatcher
 {
 public:
-	virtual void process(const get_command_ptr& cmd) = 0;
-	virtual void process(const set_command_ptr& cmd) = 0;
+	virtual ~i_server_dispatcher() = default;
+	
+	virtual void process(const get_command_ptr& cmd, i_socket& socket) = 0;
+	virtual void process(const set_command_ptr& cmd, i_socket& socket) = 0;
 };
 
 class i_client_dispatcher
 {
 public:
-	virtual void process(const get_command_response_ptr& cmd) = 0;
+	virtual ~i_client_dispatcher() = default;
+	
+	virtual void process(const get_command_response_ptr& cmd, i_socket& socket) = 0;
 };
 
-void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher);
-void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher);
+void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, i_socket& socket);
+void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher, i_socket& socket);

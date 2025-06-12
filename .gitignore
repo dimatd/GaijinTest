@@ -1,0 +1,13 @@
+/.idea/*
+/.vs/*
+/Client/x64/*
+/Protocol/Debug/*
+/Protocol/x64/*
+/Server/Debug/*
+/Server/x64/*
+/x64/Debug/*
+/Debug/*
+/Client/Client.vcxproj*
+/GaijinTest.sln
+/Protocol/Protocol.vcxproj*
+/Server/Server.vcxproj*

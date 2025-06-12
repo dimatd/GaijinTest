@@ -54,8 +54,10 @@ void read(std::string& value, std::span<const uint8_t>& view)
 std::vector<uint8_t> base_command::serialize() const
 {
 	std::vector<uint8_t> buf;
-	buf.reserve(get_serialized_size());
+	uint32_t size = (uint32_t)get_serialized_size();
+	//buf.reserve(size);
 
+	write_le<uint32_t>(buf, size);
 	write_le<uint8_t>(buf, static_cast<uint8_t>(type));
 
 	return buf;
@@ -63,7 +65,7 @@ std::vector<uint8_t> base_command::serialize() const
 
 size_t base_command::get_serialized_size() const
 {
-	return sizeof(uint8_t);
+	return sizeof(uint32_t) + sizeof(uint8_t);
 }
 
 void base_command::read(std::span<const uint8_t>& view)
@@ -143,7 +145,7 @@ void get_command::read(std::span<const uint8_t>& view)
 
 std::vector<uint8_t> get_command_response::serialize() const
 {
-	std::vector<uint8_t> buff = base_command::serialize();
+	std::vector<uint8_t> buff = command::serialize();
 	write_le<uint16_t>(buff, request_id);
 	write_le<uint64_t>(buff, reads);
 	write_le<uint64_t>(buff, writes);
@@ -154,19 +156,26 @@ std::vector<uint8_t> get_command_response::serialize() const
 
 size_t get_command_response::get_serialized_size() const
 {
-	return base_command::get_serialized_size()
+	return command::get_serialized_size()
 		+ sizeof(request_id) + sizeof(reads)
 		+ sizeof(writes) + sizeof(uint32_t) + value.size();
 }
 
 void get_command_response::read(std::span<const uint8_t>& view)
 {
-	base_command::read(view);
+	command::read(view);
+
+	request_id = read_le<uint16_t>(view);
+	reads      = read_le<uint64_t>(view);
+	writes     = read_le<uint64_t>(view);
+	::read(value, view);
+
+	if(request_id == 0)
+		throw std::runtime_error("request_id cannot be zero");
 }
 
 template<class T, class TDispatcher>
-inline void process(std::span<const uint8_t>& view, 
-					TDispatcher& dispatcher)
+inline void process(std::span<const uint8_t>& view, TDispatcher& dispatcher, i_socket& socket)
 {
 	std::shared_ptr<T> result = std::make_shared<T>();
 	result->read(view);
@@ -174,10 +183,10 @@ inline void process(std::span<const uint8_t>& view,
 	if(!view.empty())
 		throw std::runtime_error("truncated buffer");
 
-	dispatcher.process(result);
+	dispatcher.process(result, socket);
 }
 
-void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher)
+void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, i_socket& socket)
 {
 	std::span<const uint8_t> view{ buf };
 	const auto type_raw = static_cast<ecommand_type>(read_le<uint8_t>(view));
@@ -185,17 +194,17 @@ void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher)
 	switch(type_raw)
 	{
 	case ecommand_type::GET:
-		process<get_command>(view, dispatcher);
+		process<get_command>(view, dispatcher, socket);
 		break;
 	case ecommand_type::SET:
-		process<set_command>(view, dispatcher);
+		process<set_command>(view, dispatcher, socket);
 		break;
 	default:
 		throw std::runtime_error("unknown command type");
 	}
 }
 
-void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher)
+void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher, i_socket& socket)
 {
 	std::span<const uint8_t> view{ buf };
 	const auto type_raw = static_cast<ecommand_type>(read_le<uint8_t>(view));
@@ -203,13 +212,16 @@ void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher)
 	if (type_raw != ecommand_type::GET_RESPONSE)
 		throw std::runtime_error("expected GET_RESPONSE command");
 
-	process<get_command_response>(view, dispatcher);
+	process<get_command_response>(view, dispatcher, socket);
 }
 
 uint16_t get_command::next_request_id()
 {
 	static uint16_t id = 0;
-	return ++id;
+	++id;
+	if(id == 0) // Если id обнулился, начинаем с 1
+		id = 1;
+	return id;
 }
 
 

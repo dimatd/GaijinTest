@@ -3,7 +3,7 @@
 #include <iostream>
 #include <immer/map_transient.hpp> // для загрузки в временную версию дерева
 
-std::optional<std::pair<const std::string&, EntryPtr>> ConfigStore::get(const std::string& key) {
+std::optional<std::pair<const std::string&, entry_ptr>> config_store::get(const std::string& key) {
 	auto snap = root_.load();               // захватываем «снимок» RB-дерева
 	auto entry_ptr = snap->find(key);
 	if(entry_ptr == nullptr) return std::nullopt;
@@ -13,19 +13,19 @@ std::optional<std::pair<const std::string&, EntryPtr>> ConfigStore::get(const st
 	return { {key, *entry_ptr} };
 }
 
-void ConfigStore::set(const std::string& key, std::string value) {
-	root_.update([&](Map m) {
-		auto entry_ptr = m.find(key);
-		EntryPtr entry = entry_ptr != nullptr ? *entry_ptr : std::make_shared<Entry>();
-		entry->value = std::move(value);
-		entry->writes++;
-		return m.set(key, std::move(entry));   // ← создаётся новое дерево, разделяя 99 % узлов
+void config_store::set(const std::string& key, std::string value) {
+	root_.update([&](map m) {
+		auto entry_ptr_ptr = m.find(key);
+		entry_ptr entry_ = entry_ptr_ptr != nullptr ? *entry_ptr_ptr : std::make_shared<entry>();
+		entry_->value = std::move(value);
+		entry_->writes++;
+		return m.set(key, std::move(entry_));   // ← создаётся новое дерево, разделяя 99 % узлов
 	});
 	stats.add_set();
 	dirty_.store(true, std::memory_order_relaxed);
 }
 
-bool ConfigStore::flush_if_dirty()
+bool config_store::flush_if_dirty()
 {
 	if(!dirty_.exchange(false)) return false;
 
@@ -57,11 +57,11 @@ bool ConfigStore::flush_if_dirty()
 	return true; // Успешно сбросили данные в файл
 }
 
-void ConfigStore::load_into(Map& m)
+void config_store::load_into(map& m)
 {
-	std::ifstream in(file_, std::ios::binary);
+	std::ifstream in(file_, std::ios::binary | std::ios::in);
 	if (!in) {
-		throw std::ios_base::failure("Failed to open file for reading");
+		return;
 	}
 
 	auto t = m.transient(); // Получаем временную версию дерева для загрузки
@@ -81,16 +81,16 @@ void ConfigStore::load_into(Map& m)
 		std::string value(value_size, '\0');
 		in.read(value.data(), value_size); // Значение
 
-		EntryPtr entry = std::make_shared<Entry>();
-		entry->value = std::move(value);
+		entry_ptr entry_ = std::make_shared<entry>();
+		entry_->value = std::move(value);
 
-		t.set(std::move(key), std::move(entry));
+		t.set(std::move(key), std::move(entry_));
 	}
 
 	m = t.persistent();
 }
 
-void Counters::dump_and_reset()
+void counters::dump_and_reset()
 {
 	std::cout << "[Stats] total: GET=" << get_total
 		<< " SET=" << set_total
