@@ -11,13 +11,36 @@ template<class TDispatcher>
 class t_connection : public i_socket
 {
 public:
-	explicit t_connection(tcp::socket sock, TDispatcher& dispatcher)
+	explicit t_connection(asio::io_context& io, tcp::socket sock, TDispatcher& dispatcher)
 		: socket_(std::move(sock))
 		, dispatcher_(dispatcher)
+		, idle_timer_(io)
 	{}
 
+	~t_connection() override
+	{
+		std::cout << "Connection closed\n";
+	}
+
+	void reset_idle_timer() {
+		idle_timer_.expires_after(std::chrono::seconds(30));
+		idle_timer_.async_wait([this](const error_code& ec) {
+			if (!ec) {
+				std::cout << "Нет активности, отключаемся\n";
+				socket_.shutdown(tcp::socket::shutdown_both);
+			}
+		});
+	}
+	
 	void send(const base_command_ptr& cmd) override
 	{
+		if (!socket_.is_open())
+		{
+			return;
+		}
+
+		reset_idle_timer();
+		
 		auto data_ptr = std::make_shared<std::vector<uint8_t>>(cmd->serialize());
 		asio::async_write(socket_, asio::buffer(*data_ptr),
 			[data_ptr](error_code ec, std::size_t /*length*/)
@@ -25,13 +48,18 @@ public:
 			if(ec)
 				std::cerr << "Send error: " << ec.message() << '\n';
 		});
-
-		//std::cout << "Sent command: " << '\n';
 	}
 
 	template<class t_session_ptr>
 	void do_read(const t_session_ptr& session)
 	{
+		if (!socket_.is_open())
+		{
+			return;
+		}
+
+		reset_idle_timer();
+		
 		socket_.async_read_some(
 			asio::buffer(buffer_.data() + leftover_, buffer_.size() - leftover_),
 			[this, session](error_code ec, std::size_t n)
@@ -91,4 +119,5 @@ private:
 	std::array<std::uint8_t, 4096> buffer_{};
 	TDispatcher&                   dispatcher_;
 	std::size_t        	           leftover_ = 0;
+	asio::steady_timer             idle_timer_;
 };
