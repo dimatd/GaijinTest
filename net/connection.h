@@ -43,10 +43,14 @@ public:
 		
 		auto data_ptr = std::make_shared<std::vector<uint8_t>>(cmd->serialize());
 		asio::async_write(socket_, asio::buffer(*data_ptr),
-			[data_ptr](error_code ec, std::size_t /*length*/)
+				  [data_ptr, this](error_code ec, std::size_t /*length*/)
 		{
-			if(ec)
+		  if(ec){
 				std::cerr << "Send error: " << ec.message() << '\n';
+				boost::system::error_code ignored_ec;
+				socket_.shutdown(tcp::socket::shutdown_both, ignored_ec);
+				socket_.close(ignored_ec);
+		  }
 		});
 	}
 
@@ -115,9 +119,11 @@ public:
 	inline tcp::socket& get_socket() { return socket_; }
 
 private:
-	tcp::socket                    socket_;
-	std::array<std::uint8_t, 4096> buffer_{};
-	TDispatcher&                   dispatcher_;
-	std::size_t        	           leftover_ = 0;
-	asio::steady_timer             idle_timer_;
+        #define BUFFER_SIZE  4*1024*1024
+  
+	tcp::socket                           socket_;
+	std::array<std::uint8_t, BUFFER_SIZE> buffer_{};
+	TDispatcher&                          dispatcher_;
+	std::size_t        	              leftover_ = 0;
+	asio::steady_timer                    idle_timer_;
 };
