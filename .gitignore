@@ -11,3 +11,4 @@
 /GaijinTest.sln
 /Protocol/Protocol.vcxproj*
 /Server/Server.vcxproj*
+/build/*
