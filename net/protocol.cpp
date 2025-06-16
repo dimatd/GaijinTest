@@ -6,6 +6,7 @@
 #include <string>
 #include <span>
 #include <stdexcept>
+#include <format>
 
 // --- запись целого в little-endian ---
 template <class T>
@@ -29,7 +30,9 @@ T read_le(std::span<const uint8_t>& view)
 {
 	static_assert(std::is_integral_v<T>);
 	if(view.size() < sizeof(T))
-		throw std::runtime_error("truncated buffer");
+		throw std::runtime_error(
+			std::format("truncated buffer: view.size() = {}, expected >= {}", view.size(), sizeof(T))
+		);
 
 	T value = 0;
 	for(size_t i = 0; i < sizeof(T); ++i)
@@ -43,7 +46,9 @@ void read(std::string& value, std::span<const uint8_t>& view)
 {
 	auto len = read_le<uint32_t>(view);
 	if(len > view.size())
-		throw std::runtime_error("truncated buffer");
+		throw std::runtime_error(
+			std::format("truncated buffer: view.size() = {}, expected >= {}", view.size(), len)
+		);
 
 	value.assign(reinterpret_cast<const char*>(view.data()), len);
 	view = view.subspan(len);  // «сдвигаем» курсор
@@ -134,7 +139,9 @@ void get_command::read(std::span<const uint8_t>& view)
 	command::read(view);
 
 	if(view.size() < sizeof(uint16_t))
-		throw std::runtime_error("truncated buffer");
+		throw std::runtime_error(
+			std::format("truncated buffer: view.size() = {}, expected >= {}", view.size(), sizeof(uint16_t))
+		);
 
 	request_id = read_le<uint16_t>(view);
 	if(request_id == 0)
@@ -181,7 +188,9 @@ inline void process(std::span<const uint8_t>& view, TDispatcher& dispatcher, con
 	result->read(view);
 
 	if(!view.empty())
-		throw std::runtime_error("truncated buffer");
+		throw std::runtime_error(
+			std::format("truncated buffer: view.size() = {}, !view.empty()", view.size())
+		);;
 
 	dispatcher.process(result, socket);
 }

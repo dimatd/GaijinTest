@@ -137,7 +137,16 @@ public:
 						self->buffer_.begin() + offset + msg_size
 					);
 
-					read(message, self->dispatcher_, self->shared_from_this());
+					try
+					{
+						read(message, self->dispatcher_, self->shared_from_this());
+					}
+					catch(const std::exception& e)
+					{
+						std::cerr << "Read Error: " << e.what() << std::endl;
+						asio::post(self->io, [self]() { self->close(); });
+						return;
+					}
 
 					offset += msg_size;
 				}
