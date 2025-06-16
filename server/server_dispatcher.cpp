@@ -2,7 +2,7 @@
 
 #include "config_store.h"
 
-void server_dispatcher::process(const get_command_ptr& cmd, i_socket& socket)
+void server_dispatcher::process(const get_command_ptr& cmd, const i_socket_ptr& socket)
 {
 	auto opt = store_.get(cmd->get_key());
 	uint64_t reads = 0;
@@ -17,10 +17,10 @@ void server_dispatcher::process(const get_command_ptr& cmd, i_socket& socket)
 	}
 
 	get_command_response_ptr response = make_shared<get_command_response>(cmd, value, reads, writes);
-	socket.send(response);
+	socket->send(response);
 }
 
-void server_dispatcher::process(const set_command_ptr& cmd, i_socket& socket)
+void server_dispatcher::process(const set_command_ptr& cmd, const i_socket_ptr& socket)
 {
 	store_.set(cmd->get_key(), cmd->get_value());
 }

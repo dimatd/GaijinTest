@@ -175,7 +175,7 @@ void get_command_response::read(std::span<const uint8_t>& view)
 }
 
 template<class T, class TDispatcher>
-inline void process(std::span<const uint8_t>& view, TDispatcher& dispatcher, i_socket& socket)
+inline void process(std::span<const uint8_t>& view, TDispatcher& dispatcher, const i_socket_ptr& socket)
 {
 	std::shared_ptr<T> result = std::make_shared<T>();
 	result->read(view);
@@ -186,7 +186,7 @@ inline void process(std::span<const uint8_t>& view, TDispatcher& dispatcher, i_s
 	dispatcher.process(result, socket);
 }
 
-void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, i_socket& socket)
+void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, const i_socket_ptr& socket)
 {
 	std::span<const uint8_t> view{ buf };
 	const auto type_raw = static_cast<ecommand_type>(read_le<uint8_t>(view));
@@ -204,7 +204,7 @@ void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, i_so
 	}
 }
 
-void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher, i_socket& socket)
+void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher, const i_socket_ptr& socket)
 {
 	std::span<const uint8_t> view{ buf };
 	const auto type_raw = static_cast<ecommand_type>(read_le<uint8_t>(view));

@@ -14,7 +14,7 @@ using namespace std::chrono_literals;
 class client_dispatcher : public i_client_dispatcher
 {
 public:
-	void process(const get_command_response_ptr& cmd, i_socket& socket) override
+	void process(const get_command_response_ptr& cmd, const i_socket_ptr& socket) override
 	{
 		static int count = 0;
 		if (++count % 1000 == 0) {
@@ -29,14 +29,15 @@ public:
 };
 
 using connection = t_connection<client_dispatcher>;
+using connection_ptr = std::shared_ptr<connection>;
 
 class spammer
 {
 public:
 	spammer(asio::io_context& io, const tcp::resolver::results_type& endpoints)
-		: conn_(io, tcp::socket(io), dispatcher_)
+		: conn_(make_shared<connection>(io, tcp::socket(io), dispatcher_))
 	{
-		asio::async_connect(conn_.get_socket(), endpoints,
+		asio::async_connect(conn_->get_socket(), endpoints,
 			[this](error_code ec, const tcp::endpoint&)
 		{
 			if(!ec) {
@@ -52,7 +53,7 @@ public:
 private:
 	void start_send_loop()
 	{
-		conn_.do_read(nullptr);
+		conn_->do_read();
 
 		/*for(int i = 0; i < 1000; ++i)
 		{
@@ -109,11 +110,11 @@ private:
 
 	void send_once()
 	{
-		conn_.send(generate_command());
+		conn_->send(generate_command());
 	}
 
 	client_dispatcher        dispatcher_;
-	connection               conn_;
+	connection_ptr           conn_;
 	std::vector<std::string> all_keys_;
 };
 

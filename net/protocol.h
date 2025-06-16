@@ -148,13 +148,15 @@ public:
 	virtual void send(const base_command_ptr& cmd) = 0;
 };
 
+using i_socket_ptr = std::shared_ptr<i_socket>;
+
 class i_server_dispatcher
 {
 public:
 	virtual ~i_server_dispatcher() = default;
 	
-	virtual void process(const get_command_ptr& cmd, i_socket& socket) = 0;
-	virtual void process(const set_command_ptr& cmd, i_socket& socket) = 0;
+	virtual void process(const get_command_ptr& cmd, const i_socket_ptr& socket) = 0;
+	virtual void process(const set_command_ptr& cmd, const i_socket_ptr& socket) = 0;
 };
 
 class i_client_dispatcher
@@ -162,8 +164,8 @@ class i_client_dispatcher
 public:
 	virtual ~i_client_dispatcher() = default;
 	
-	virtual void process(const get_command_response_ptr& cmd, i_socket& socket) = 0;
+	virtual void process(const get_command_response_ptr& cmd, const i_socket_ptr& socket) = 0;
 };
 
-void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, i_socket& socket);
-void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher, i_socket& socket);
+void read(const std::vector<uint8_t>& buf, i_server_dispatcher& dispatcher, const i_socket_ptr& socket);
+void read(const std::vector<uint8_t>& buf, i_client_dispatcher& dispatcher, const i_socket_ptr& socket);

@@ -14,6 +14,7 @@ using boost::system::error_code;
 using tcp = asio::ip::tcp;
 
 using connection = t_connection<server_dispatcher>;
+using connection_ptr = std::shared_ptr<connection>;
 
 // -----------------------------------------------------------------------------
 // Одна клиентская сессия
@@ -22,7 +23,7 @@ class session : public std::enable_shared_from_this<session>
 {
 public:
 	explicit session(asio::io_context& io, tcp::socket sock, config_store& store)
-		: dispatcher_(store), conn_(io, std::move(sock), dispatcher_)
+		: dispatcher_(store), conn_(std::make_shared<connection>(io, std::move(sock), dispatcher_))
 	{}
 
 	~session()
@@ -30,11 +31,11 @@ public:
 		std::cout << "Session closed\n";
 	}
 
-	void start() { conn_.do_read(shared_from_this()); }
+	void start() { conn_->do_read(); }
 
 private:
 	server_dispatcher dispatcher_;
-	connection        conn_;
+	connection_ptr    conn_;
 };
 
 // -----------------------------------------------------------------------------
