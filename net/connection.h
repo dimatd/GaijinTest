@@ -64,6 +64,11 @@ public:
 				return;
 			}
 
+			if(ec == asio::error::operation_aborted)
+			{
+				return;
+			}
+
 			if(ec)
 			{
 				std::cerr << "Send error: " << ec.message() << '\n';
@@ -103,6 +108,11 @@ public:
 		{
 			auto self = self_weak.lock();
 			if (!self)
+			{
+				return;
+			}
+
+			if(ec == asio::error::operation_aborted)
 			{
 				return;
 			}
