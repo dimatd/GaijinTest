@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <memory.h>
 
 enum class ecommand_type : std::uint8_t
 {
@@ -27,10 +28,10 @@ public:
 	base_command(const base_command&) = delete;
 	base_command& operator=(const base_command&) = delete;
 
-	virtual std::vector<uint8_t> serialize          () const;
-	virtual size_t               get_serialized_size() const;
+	virtual memory_writer serialize          () const;
+	virtual size_t        get_serialized_size() const;
 
-	virtual void read(std::span<const uint8_t>& view);
+	virtual void read(memory_reader& view);
 
 private:
 	ecommand_type type;
@@ -48,10 +49,10 @@ public:
 	inline command(ecommand_type type)
 		: base_command(type) {}
 
-	virtual std::vector<uint8_t> serialize() const;
-	virtual size_t               get_serialized_size() const;
+	virtual memory_writer serialize          () const;
+	virtual size_t        get_serialized_size() const;
 
-	virtual void read(std::span<const uint8_t>& view);
+	virtual void read(memory_reader& view);
 
 	inline const std::string& get_key() const { return key; }
 
@@ -71,10 +72,10 @@ public:
 	inline get_command()
 		: command(ecommand_type::GET) {}
 
-	std::vector<uint8_t> serialize          () const override;
-	size_t               get_serialized_size() const override;
+	memory_writer serialize          () const override;
+	size_t        get_serialized_size() const override;
 
-	void read(std::span<const uint8_t>& view) override;
+	void read(memory_reader& view) override;
 
 private:
 	uint16_t request_id = get_command::next_request_id();
@@ -95,10 +96,10 @@ public:
 	inline set_command()
 		: command(ecommand_type::SET) {}
 
-	std::vector<uint8_t> serialize          () const override;
-	size_t               get_serialized_size() const override;
+	memory_writer serialize          () const override;
+	size_t        get_serialized_size() const override;
 
-	void read(std::span<const uint8_t>& view) override;
+	void read(memory_reader& view) override;
 
 	inline const std::string& get_value() const { return value; }
 
@@ -120,10 +121,10 @@ public:
 
 	inline get_command_response() : command(ecommand_type::GET_RESPONSE) {}
 
-	std::vector<uint8_t> serialize          () const override;
-	size_t               get_serialized_size() const override;
+	memory_writer serialize          () const override;
+	size_t        get_serialized_size() const override;
 
-	void read(std::span<const uint8_t>& view) override;
+	void read(memory_reader& view) override;
 
 	inline uint16_t           get_request_id() const { return request_id; }
 	inline const std::string& get_value     () const { return value; }

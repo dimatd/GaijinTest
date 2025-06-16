@@ -5,6 +5,7 @@ add_library(net STATIC
     connection.h
     protocol.cpp
     protocol.h
+	memory.h
 )
 
 target_include_directories(net

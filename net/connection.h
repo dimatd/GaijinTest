@@ -54,7 +54,7 @@ public:
 		reset_idle_timer();
 		t_connection_weak_ptr self_weak = shared_from_this();
 		
-		auto data_ptr = std::make_shared<std::vector<uint8_t>>(cmd->serialize());
+		auto data_ptr = std::make_shared<std::vector<uint8_t>>(cmd->serialize().get_buffer());
 		asio::async_write(socket_, asio::buffer(*data_ptr),
 			[data_ptr, self_weak](error_code ec, std::size_t /*length*/)
 		{
