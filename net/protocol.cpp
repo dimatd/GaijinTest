@@ -34,7 +34,7 @@ void write(const std::string& value, std::vector<uint8_t>& buf)
 	write_le<uint32_t>(buf, len);
 	buf.insert(buf.end(), value.begin(), value.end());
 
-	assert(buf.size() - old_size == len); // Проверяем, что добавили нужное количество байт
+	assert(buf.size() - old_size == sizeof(uint32_t) + len); // Проверяем, что добавили нужное количество байт
 };
 
 // --- чтение целого из little-endian ---
