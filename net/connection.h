@@ -18,6 +18,7 @@ public:
 		: socket_(std::move(sock))
 		, dispatcher_(dispatcher)
 		, idle_timer_(io)
+		, io(io)
 	{}
 
 	~t_connection() override
@@ -38,7 +39,7 @@ public:
 
 			if (!ec) {
 				std::cout << "Nothing happened for 30 seconds, closing connection\n";
-				self->close();
+				asio::post(self->io, [self]() { self->close(); });;
 			}
 		});
 	}
@@ -66,7 +67,7 @@ public:
 			if(ec)
 			{
 				std::cerr << "Send error: " << ec.message() << '\n';
-				self->close();
+				asio::post(self->io, [self]() { self->close(); });
 			}
 		});
 	}
@@ -146,7 +147,7 @@ public:
 			else if(ec != asio::error::eof)
 			{
 				std::cerr << "Read error: " << ec.message() << '\n';
-				self->close();
+				asio::post(self->io, [self]() { self->close(); });
 			}
 		});
 	}
@@ -161,4 +162,5 @@ private:
 	TDispatcher&                          dispatcher_;
 	std::size_t        	                  leftover_ = 0;
 	asio::steady_timer                    idle_timer_;
+	asio::io_context&                     io;
 };
