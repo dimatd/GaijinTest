@@ -7,21 +7,34 @@
 #include <span>
 #include <stdexcept>
 #include <format>
+#include <cassert>
 
 // --- запись целого в little-endian ---
 template <class T>
 void write_le(std::vector<uint8_t>& buf, T value)
 {
+	size_t old_size = buf.size();
+
 	static_assert(std::is_integral_v<T>);
 	for(size_t i = 0; i < sizeof(T); ++i)
 		buf.push_back(static_cast<uint8_t>(value >> (i * 8)));
+
+	assert(buf.size() - old_size == sizeof(T)); // Проверяем, что добавили нужное количество байт)
 }
 
 void write(const std::string& value, std::vector<uint8_t>& buf)
 {
+	if(value.size() > std::numeric_limits<uint32_t>::max()) {
+		throw std::runtime_error("String too long to serialize");
+	}
+
+	size_t old_size = buf.size();
+
 	auto len = static_cast<uint32_t>(value.size());
 	write_le<uint32_t>(buf, len);
 	buf.insert(buf.end(), value.begin(), value.end());
+
+	assert(buf.size() - old_size == len); // Проверяем, что добавили нужное количество байт
 };
 
 // --- чтение целого из little-endian ---
@@ -153,11 +166,12 @@ void get_command::read(std::span<const uint8_t>& view)
 std::vector<uint8_t> get_command_response::serialize() const
 {
 	std::vector<uint8_t> buff = command::serialize();
-	::write(value, buff);
 
 	write_le<uint16_t>(buff, request_id);
 	write_le<uint64_t>(buff, reads);
 	write_le<uint64_t>(buff, writes);
+	
+	::write(value, buff);
 
 	return buff;
 }
@@ -172,12 +186,12 @@ size_t get_command_response::get_serialized_size() const
 void get_command_response::read(std::span<const uint8_t>& view)
 {
 	command::read(view);
-	::read(value, view);
-
+	
 	request_id = read_le<uint16_t>(view);
 	reads      = read_le<uint64_t>(view);
 	writes     = read_le<uint64_t>(view);
-	
+
+	::read(value, view);
 
 	if(request_id == 0)
 		throw std::runtime_error("request_id cannot be zero");
