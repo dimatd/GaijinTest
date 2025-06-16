@@ -153,10 +153,11 @@ void get_command::read(std::span<const uint8_t>& view)
 std::vector<uint8_t> get_command_response::serialize() const
 {
 	std::vector<uint8_t> buff = command::serialize();
+	::write(value, buff);
+
 	write_le<uint16_t>(buff, request_id);
 	write_le<uint64_t>(buff, reads);
 	write_le<uint64_t>(buff, writes);
-	write(value, buff);
 
 	return buff;
 }
@@ -171,11 +172,12 @@ size_t get_command_response::get_serialized_size() const
 void get_command_response::read(std::span<const uint8_t>& view)
 {
 	command::read(view);
+	::read(value, view);
 
 	request_id = read_le<uint16_t>(view);
 	reads      = read_le<uint64_t>(view);
 	writes     = read_le<uint64_t>(view);
-	::read(value, view);
+	
 
 	if(request_id == 0)
 		throw std::runtime_error("request_id cannot be zero");
