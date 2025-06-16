@@ -53,7 +53,7 @@ public:
 private:
 	void start_send_loop()
 	{
-		conn_->do_read();
+		conn_->do_read(nullptr);
 
 		/*for(int i = 0; i < 1000; ++i)
 		{

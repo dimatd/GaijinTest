@@ -26,11 +26,19 @@ public:
 	}
 
 	void reset_idle_timer() {
+		t_connection_weak_ptr self_weak = shared_from_this();
+
 		idle_timer_.expires_after(std::chrono::seconds(30));
-		idle_timer_.async_wait([this](const error_code& ec) {
+
+		idle_timer_.async_wait([self_weak](const error_code& ec) {
+			auto self = self_weak.lock();
+			if (!self) {
+				return; // объект уже уничтожен
+			}
+
 			if (!ec) {
 				std::cout << "Nothing happened for 30 seconds, closing connection\n";
-				close();
+				self->close();
 			}
 		});
 	}
@@ -65,15 +73,20 @@ public:
 
 	void close()
 	{
-		//if (socket_.is_open())
+		if (!socket_.is_open())
 		{
-			boost::system::error_code ignored_ec;
-			socket_.shutdown(tcp::socket::shutdown_both, ignored_ec);
-			socket_.close(ignored_ec);
+			return;
 		}
+
+		boost::system::error_code ec;
+		socket_.cancel(ec);
+		socket_.shutdown(tcp::socket::shutdown_both, ec);
+		socket_.close(ec);
+		idle_timer_.cancel();
 	};
 
-	void do_read()
+	template<class t_session_ptr>
+	void do_read(const t_session_ptr& session)
 	{
 		if (!socket_.is_open())
 		{
@@ -85,7 +98,7 @@ public:
 
 		socket_.async_read_some(
 			asio::buffer(buffer_.data() + leftover_, buffer_.size() - leftover_),
-			[self_weak](error_code ec, std::size_t n)
+			[self_weak, session](error_code ec, std::size_t n)
 		{
 			auto self = self_weak.lock();
 			if (!self)
@@ -128,7 +141,7 @@ public:
 					self->leftover_ = 0;
 				}
 
-				self->do_read(); // читаем дальше
+				self->do_read(session); // читаем дальше
 			}
 			else if(ec != asio::error::eof)
 			{
