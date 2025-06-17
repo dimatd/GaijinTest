@@ -52,11 +52,10 @@
 
 ---
 
-## 📦 Сборка
+## 📦 Сборка используем `CMake`_::
 
-`CMake`_::
     mkdir build && cd build
-    cmake .. -DCMAKE_CXX_STANDARD=20
+    cmake ..
     make
 
 
