@@ -203,13 +203,6 @@ private:
 		t_connection_weak_ptr self_weak = shared_from_this();
 		reset_idle_timer();
 
-		static std::atomic<uint64_t> num(0);
-		num++;
-		if(num % 1000 == 0)
-		{
-			std::cout << "total sent: " << num << '\n';
-		}
-
 		asio::async_write(socket_, asio::buffer(*data_ptr),
 			[self_weak, data_ptr](error_code ec, std::size_t /*length*/)
 			{
