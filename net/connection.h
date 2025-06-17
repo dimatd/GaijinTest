@@ -31,7 +31,8 @@ public:
 	void reset_idle_timer() {
 		t_connection_weak_ptr self_weak = shared_from_this();
 
-		idle_timer_.expires_after(std::chrono::seconds(30));
+		idle_timer_.cancel();
+		idle_timer_.expires_after(std::chrono::seconds(300));
 
 		idle_timer_.async_wait([self_weak](const error_code& ec) {
 			auto self = self_weak.lock();
@@ -39,9 +40,13 @@ public:
 				return; // объект уже уничтожен
 			}
 
+			if (ec == asio::error::operation_aborted) {
+				return; // таймер был отменён, ничего не делаем
+			}
+
 			if (!ec) {
 				std::cout << "Nothing happened for 30 seconds, closing connection\n";
-				asio::post(self->io_, [self]() { self->close(); });;
+				asio::post(self->strand_, [self]() { self->close(); });;
 			}
 		});
 	}
@@ -148,7 +153,7 @@ public:
 						catch(const std::exception& e)
 						{
 							std::cerr << "Read Error: " << e.what() << std::endl;
-							asio::post(self->io_, [self]() { self->close(); });
+							asio::post(self->strand_, [self]() { self->close(); });
 							return;
 						}
 
@@ -170,7 +175,7 @@ public:
 				else if(ec != asio::error::eof)
 				{
 					std::cerr << "Read error: " << ec.message() << '\n';
-					asio::post(self->io_, [self]() { self->close(); });
+					asio::post(self->strand_, [self]() { self->close(); });
 					return;
 				}
 			});
@@ -199,8 +204,8 @@ public:
 				}
 
 				if(!ec) {
-					std::cout << "Nothing happened for 30 seconds, closing connection\n";
-					asio::post(self->io_, [self]() { self->close(); });
+					std::cout << "closing connection ec: " << ec.message() << '\n';
+					asio::post(self->strand_, [self]() { self->close(); });
 					return;
 				}
 
