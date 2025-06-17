@@ -1,7 +1,6 @@
 set(CMAKE_CXX_STANDARD 20)
 
 add_library(net STATIC
-    connection.cpp
     connection.h
     protocol.cpp
     protocol.h
