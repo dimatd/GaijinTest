@@ -20,6 +20,7 @@ public:
 		, dispatcher_(dispatcher)
 		, idle_timer_(io)
 		, io_(io)
+		, strand_(asio::make_strand(io.get_executor()))
 	{}
 
 	~t_connection() override
@@ -47,20 +48,21 @@ public:
 	
 	void send(const base_command_ptr& cmd) override
 	{
-		if (!socket_.is_open())
-		{
-			return;
-		}
-
-		reset_idle_timer();
 		t_connection_weak_ptr self_weak = shared_from_this();
 
-		asio::post(io_, [self_weak, cmd]() {
+		asio::post(strand_, [self_weak, cmd]() {
 			auto self = self_weak.lock();
 			if(!self)
 			{
 				return;
 			}
+
+			if(!self->socket_.is_open())
+			{
+				return;
+			}
+
+			self->reset_idle_timer();
 
 			bool write_in_progress = !self->send_queue_.empty();
 			self->send_queue_.push(cmd->serialize().get_buffer());
@@ -87,81 +89,92 @@ public:
 	template<class t_session_ptr>
 	void do_read(const t_session_ptr& session)
 	{
-		if (!socket_.is_open())
-		{
-			return;
-		}
-
-		reset_idle_timer();
 		t_connection_weak_ptr self_weak = shared_from_this();
 
-		socket_.async_read_some(
-			asio::buffer(buffer_.data() + leftover_, buffer_.size() - leftover_),
-			[self_weak, session](error_code ec, std::size_t n)
+		asio::post(strand_, [self_weak, session]()
 		{
 			auto self = self_weak.lock();
-			if (!self)
+			if(!self)
 			{
 				return;
 			}
 
-			if(ec == asio::error::operation_aborted)
+			if(!self->socket_.is_open())
 			{
 				return;
 			}
 
-			if(!ec)
+			self->reset_idle_timer();
+
+			self->socket_.async_read_some(
+				asio::buffer(self->buffer_.data() + self->leftover_, self->buffer_.size() - self->leftover_),
+				[self_weak, session](error_code ec, std::size_t n)
 			{
-				constexpr size_t MSG_SIZE_BYTES = 4;
-				size_t offset = 0;
-				n += self->leftover_;
-
-				while(n - offset >= MSG_SIZE_BYTES) {
-					uint32_t msg_size = 0;
-					std::memcpy(&msg_size, self->buffer_.data() + offset, MSG_SIZE_BYTES);
-
-					if(n - offset < msg_size) {
-						// Недостаточно данных для полного сообщения, ждём следующего чтения
-						break;
-					}
-
-					std::vector<uint8_t> message(
-						self->buffer_.begin() + offset + MSG_SIZE_BYTES,
-						self->buffer_.begin() + offset + msg_size
-					);
-
-					try
-					{
-						read(message, self->dispatcher_, self->shared_from_this());
-					}
-					catch(const std::exception& e)
-					{
-						std::cerr << "Read Error: " << e.what() << std::endl;
-						asio::post(self->io_, [self]() { self->close(); });
-						return;
-					}
-
-					offset += msg_size;
+				auto self = self_weak.lock();
+				if(!self)
+				{
+					return;
 				}
 
-				// После while-цикла:
-				if(offset < n) {
-					// Копируем остаток в начало буфера
-					std::memmove(self->buffer_.data(), self->buffer_.data() + offset, n - offset);
-					self->leftover_ = n - offset;
-				}
-				else {
-					self->leftover_ = 0;
+				if(ec == asio::error::operation_aborted)
+				{
+					return;
 				}
 
-				self->do_read(session); // читаем дальше
-			}
-			else if(ec != asio::error::eof)
-			{
-				std::cerr << "Read error: " << ec.message() << '\n';
-				asio::post(self->io_, [self]() { self->close(); });
-				return;
-			}
+				if(!ec)
+				{
+					constexpr size_t MSG_SIZE_BYTES = 4;
+					size_t offset = 0;
+					n += self->leftover_;
+
+					while(n - offset >= MSG_SIZE_BYTES) {
+						uint32_t msg_size = 0;
+						std::memcpy(&msg_size, self->buffer_.data() + offset, MSG_SIZE_BYTES);
+
+						if(n - offset < msg_size) {
+							// Недостаточно данных для полного сообщения, ждём следующего чтения
+							break;
+						}
+
+						std::vector<uint8_t> message(
+							self->buffer_.begin() + offset + MSG_SIZE_BYTES,
+							self->buffer_.begin() + offset + msg_size
+						);
+
+						try
+						{
+							read(message, self->dispatcher_, self->shared_from_this());
+						}
+						catch(const std::exception& e)
+						{
+							std::cerr << "Read Error: " << e.what() << std::endl;
+							asio::post(self->io_, [self]() { self->close(); });
+							return;
+						}
+
+						offset += msg_size;
+					}
+
+					// После while-цикла:
+					if(offset < n) {
+						// Копируем остаток в начало буфера
+						std::memmove(self->buffer_.data(), self->buffer_.data() + offset, n - offset);
+						self->leftover_ = n - offset;
+					}
+					else {
+						self->leftover_ = 0;
+					}
+
+					self->do_read(session); // читаем дальше
+				}
+				else if(ec != asio::error::eof)
+				{
+					std::cerr << "Read error: " << ec.message() << '\n';
+					asio::post(self->io_, [self]() { self->close(); });
+					return;
+				}
+			});
+
 		});
 	}
 
@@ -203,11 +216,12 @@ public:
 private:
 	#define BUFFER_SIZE  4*1024*1024 // 4 MB buffer size
   
-	std::queue<std::vector<uint8_t>>      send_queue_;
-	tcp::socket                           socket_;
-	std::array<std::uint8_t, BUFFER_SIZE> buffer_{};
-	TDispatcher&                          dispatcher_;
-	std::size_t        	                  leftover_ = 0;
-	asio::steady_timer                    idle_timer_;
-	asio::io_context&                     io_;
+	std::queue<std::vector<uint8_t>>              send_queue_;
+	tcp::socket                                   socket_;
+	std::array<std::uint8_t, BUFFER_SIZE>         buffer_{};
+	TDispatcher&                                  dispatcher_;
+	std::size_t        	                          leftover_ = 0;
+	asio::steady_timer                            idle_timer_;
+	asio::io_context&                             io_;
+	asio::strand<asio::io_context::executor_type> strand_;
 };
