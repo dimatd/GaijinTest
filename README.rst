@@ -54,10 +54,10 @@
 
 ## 📦 Сборка
 
-```bash
-mkdir build && cd build
-cmake .. -DCMAKE_CXX_STANDARD=20
-make
+`CMake`_::
+    mkdir build && cd build
+    cmake .. -DCMAKE_CXX_STANDARD=20
+    make
 
 
 
