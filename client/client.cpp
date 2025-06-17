@@ -17,7 +17,7 @@ public:
 	void process(const get_command_response_ptr& cmd, const i_socket_ptr& socket) override
 	{
 		static int count = 0;
-		if (++count % 1000 == 0) {
+		if (++count % 10 == 0) {
 			std::cout << "Processed " << count << " get responses\n";
 		
 			std::cout << "Received response for key: " << cmd->get_key() << std::endl
@@ -60,7 +60,7 @@ private:
 			conn_.send(generate_set_command());
 		}*/
 		
-		for (int i = 0; i < 10; ++i)
+		for (int i = 0; i < 1000000; ++i)
 		{
 			send_once();
 		}

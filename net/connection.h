@@ -32,7 +32,7 @@ public:
 		t_connection_weak_ptr self_weak = shared_from_this();
 
 		idle_timer_.cancel();
-		idle_timer_.expires_after(std::chrono::seconds(300));
+		idle_timer_.expires_after(std::chrono::seconds(30));
 
 		idle_timer_.async_wait([self_weak](const error_code& ec) {
 			auto self = self_weak.lock();
@@ -184,7 +184,7 @@ public:
 	}
 
 	void do_write() {
-		auto& data = send_queue_.front();
+		auto data = send_queue_.front();
 		auto data_ptr = std::make_shared<std::vector<uint8_t>>(std::move(data));
 
 		t_connection_weak_ptr self_weak = shared_from_this();
@@ -203,7 +203,8 @@ public:
 					return;
 				}
 
-				if(!ec) {
+				if(ec)
+				{
 					std::cout << "closing connection ec: " << ec.message() << '\n';
 					asio::post(self->strand_, [self]() { self->close(); });
 					return;
