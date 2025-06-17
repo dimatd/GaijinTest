@@ -17,7 +17,7 @@ public:
 	void process(const get_command_response_ptr& cmd, const i_socket_ptr& socket) override
 	{
 		static int count = 0;
-		if (++count % 10 == 0) {
+		if (++count % 1000 == 0) {
 			std::cout << "Processed " << count << " get responses\n";
 		
 			std::cout << "Received response for key: " << cmd->get_key() << std::endl
@@ -53,7 +53,7 @@ public:
 private:
 	void start_send_loop()
 	{
-		conn_->do_read(nullptr);
+		conn_->read(std::shared_ptr<spammer>());
 
 		/*for(int i = 0; i < 1000; ++i)
 		{

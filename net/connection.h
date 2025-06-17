@@ -8,14 +8,14 @@ namespace asio = boost::asio;
 using boost::system::error_code;
 using tcp = asio::ip::tcp;
 
-template<class TDispatcher>
-class t_connection : public i_socket, public std::enable_shared_from_this<t_connection<TDispatcher>>
+template<class t_dispatcher>
+class t_connection : public i_socket, public std::enable_shared_from_this<t_connection<t_dispatcher>>
 {
-using std::enable_shared_from_this<t_connection<TDispatcher>>::shared_from_this;
-using t_connection_weak_ptr = std::weak_ptr<t_connection<TDispatcher>>;
+using std::enable_shared_from_this<t_connection<t_dispatcher>>::shared_from_this;
+using t_connection_weak_ptr = std::weak_ptr<t_connection<t_dispatcher>>;
 
 public:
-	explicit t_connection(asio::io_context& io, tcp::socket sock, TDispatcher& dispatcher)
+	explicit t_connection(asio::io_context& io, tcp::socket sock, t_dispatcher& dispatcher)
 		: socket_(std::move(sock))
 		, dispatcher_(dispatcher)
 		, idle_timer_(io)
@@ -26,29 +26,6 @@ public:
 	~t_connection() override
 	{
 		std::cout << "Connection closed\n";
-	}
-
-	void reset_idle_timer() {
-		t_connection_weak_ptr self_weak = shared_from_this();
-
-		idle_timer_.cancel();
-		idle_timer_.expires_after(std::chrono::seconds(30));
-
-		idle_timer_.async_wait([self_weak](const error_code& ec) {
-			auto self = self_weak.lock();
-			if (!self) {
-				return; // объект уже уничтожен
-			}
-
-			if (ec == asio::error::operation_aborted) {
-				return; // таймер был отменён, ничего не делаем
-			}
-
-			if (!ec) {
-				std::cout << "Nothing happened for 30 seconds, closing connection\n";
-				asio::post(self->strand_, [self]() { self->close(); });;
-			}
-		});
 	}
 	
 	void send(const base_command_ptr& cmd) override
@@ -91,29 +68,59 @@ public:
 		idle_timer_.cancel();
 	};
 
+	inline tcp::socket& get_socket() { return socket_; }
+
 	template<class t_session_ptr>
-	void do_read(const t_session_ptr& session)
+	void read(const t_session_ptr& session)
 	{
 		t_connection_weak_ptr self_weak = shared_from_this();
 
-		asio::post(strand_, [self_weak, session]()
-		{
+		asio::post(strand_, [self_weak, session]() {
 			auto self = self_weak.lock();
-			if(!self)
-			{
-				return;
+			if(!self) return;
+
+			self->do_read(session);
+		});
+	}
+
+private:
+	void reset_idle_timer() {
+		t_connection_weak_ptr self_weak = shared_from_this();
+
+		idle_timer_.cancel();
+		idle_timer_.expires_after(std::chrono::seconds(30));
+
+		idle_timer_.async_wait([self_weak](const error_code& ec) {
+			auto self = self_weak.lock();
+			if(!self) {
+				return; // объект уже уничтожен
 			}
 
-			if(!self->socket_.is_open())
-			{
-				return;
+			if(ec == asio::error::operation_aborted) {
+				return; // таймер был отменён, ничего не делаем
 			}
 
-			self->reset_idle_timer();
+			if(!ec) {
+				std::cout << "Nothing happened for 30 seconds, closing connection\n";
+				asio::post(self->strand_, [self]() { self->close(); });;
+			}
+		});
+	}
 
-			self->socket_.async_read_some(
-				asio::buffer(self->buffer_.data() + self->leftover_, self->buffer_.size() - self->leftover_),
-				[self_weak, session](error_code ec, std::size_t n)
+	template<class t_session_ptr>
+	void do_read(const t_session_ptr& session)
+	{
+		if(!socket_.is_open())
+		{
+			return;
+		}
+
+		reset_idle_timer();
+		t_connection_weak_ptr self_weak = shared_from_this();
+
+		socket_.async_read_some(
+			asio::buffer(buffer_.data() + leftover_, buffer_.size() - leftover_),
+			[self_weak, session](error_code ec, std::size_t n)
 			{
 				auto self = self_weak.lock();
 				if(!self)
@@ -148,7 +155,7 @@ public:
 
 						try
 						{
-							read(message, self->dispatcher_, self->shared_from_this());
+							::read(message, self->dispatcher_, self->shared_from_this());
 						}
 						catch(const std::exception& e)
 						{
@@ -179,8 +186,14 @@ public:
 					return;
 				}
 			});
+	}
 
-		});
+	void send_next()
+	{
+		send_queue_.pop();
+		if(!send_queue_.empty()) {
+			do_write(); // отправляем следующий
+		}
 	}
 
 	void do_write() {
@@ -188,6 +201,14 @@ public:
 		auto data_ptr = std::make_shared<std::vector<uint8_t>>(std::move(data));
 
 		t_connection_weak_ptr self_weak = shared_from_this();
+		reset_idle_timer();
+
+		static std::atomic<uint64_t> num(0);
+		num++;
+		if(num % 1000 == 0)
+		{
+			std::cout << "total sent: " << num << '\n';
+		}
 
 		asio::async_write(socket_, asio::buffer(*data_ptr),
 			[self_weak, data_ptr](error_code ec, std::size_t /*length*/)
@@ -210,14 +231,11 @@ public:
 					return;
 				}
 
-				self->send_queue_.pop();
-				if(!self->send_queue_.empty()) {
-					self->do_write(); // отправляем следующий
-				}
+				asio::post(self->strand_, [self]() { self->send_next();});
 			});
 	}
 
-	inline tcp::socket& get_socket() { return socket_; }
+
 
 private:
 	#define BUFFER_SIZE  4*1024*1024 // 4 MB buffer size
@@ -225,7 +243,7 @@ private:
 	std::queue<std::vector<uint8_t>>              send_queue_;
 	tcp::socket                                   socket_;
 	std::array<std::uint8_t, BUFFER_SIZE>         buffer_{};
-	TDispatcher&                                  dispatcher_;
+	t_dispatcher&                                 dispatcher_;
 	std::size_t        	                          leftover_ = 0;
 	asio::steady_timer                            idle_timer_;
 	asio::io_context&                             io_;

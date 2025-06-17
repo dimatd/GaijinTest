@@ -31,7 +31,7 @@ public:
 		std::cout << "Session closed\n";
 	}
 
-	void start() { conn_->do_read(shared_from_this()); }
+	void start() { conn_->read(shared_from_this()); }
 
 private:
 	server_dispatcher dispatcher_;
