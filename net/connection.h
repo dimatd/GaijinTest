@@ -138,7 +138,7 @@ private:
 					);
 
 					try {
-						::read(message, self->dispatcher_, self->shared_from_this());
+						::read(message, self->dispatcher_, self);
 					}
 					catch(const std::exception& e) {
 						std::cerr << "Read Error: " << e.what() << std::endl;

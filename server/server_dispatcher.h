@@ -12,6 +12,7 @@ public:
 	
 	void process(const get_command_ptr& cmd, const i_socket_ptr& socket) override;
 	void process(const set_command_ptr& cmd, const i_socket_ptr& socket) override;
+
 private:
 	config_store& store_;
 };

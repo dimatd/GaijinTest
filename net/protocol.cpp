@@ -9,65 +9,6 @@
 #include <format>
 #include <cassert>
 
-
-// --- запись целого в little-endian ---
-//template <class T>
-//void write_le(std::vector<uint8_t>& buf, T value)
-//{
-//	size_t old_size = buf.size();
-//
-//	static_assert(std::is_integral_v<T>);
-//	for(size_t i = 0; i < sizeof(T); ++i)
-//		buf.push_back(static_cast<uint8_t>(value >> (i * 8)));
-//
-//	assert(buf.size() - old_size == sizeof(T)); // Проверяем, что добавили нужное количество байт)
-//}
-//
-//void write(const std::string& value, std::vector<uint8_t>& buf)
-//{
-//	if(value.size() > std::numeric_limits<uint32_t>::max()) {
-//		throw std::runtime_error("String too long to serialize");
-//	}
-//
-//	size_t old_size = buf.size();
-//
-//	auto len = static_cast<uint32_t>(value.size());
-//	write_le<uint32_t>(buf, len);
-//	buf.insert(buf.end(), value.begin(), value.end());
-//
-//	assert(buf.size() - old_size == sizeof(uint32_t) + len); // Проверяем, что добавили нужное количество байт
-//};
-
-// --- чтение целого из little-endian ---
-//template <class T>
-//T read_le(std::span<const uint8_t>& view)
-//{
-//	static_assert(std::is_integral_v<T>);
-//	if(view.size() < sizeof(T))
-//		throw std::runtime_error(
-//			std::format("truncated buffer: view.size() = {}, expected >= {}", view.size(), sizeof(T))
-//		);
-//
-//	T value = 0;
-//	for(size_t i = 0; i < sizeof(T); ++i)
-//		value |= static_cast<T>(view[i]) << (i * 8);
-//
-//	view = view.subspan(sizeof(T));   // «сдвигаем» курсор
-//	return value;
-//}
-//
-//void read(std::string& value, std::span<const uint8_t>& view)
-//{
-//	auto len = read_le<uint32_t>(view);
-//	if(len > view.size())
-//		throw std::runtime_error(
-//			std::format("truncated buffer: view.size() = {}, expected >= {}", view.size(), len)
-//		);
-//
-//	value.assign(reinterpret_cast<const char*>(view.data()), len);
-//	view = view.subspan(len);  // «сдвигаем» курсор
-//}
-
 //-- base_command
 
 memory_writer base_command::serialize() const
