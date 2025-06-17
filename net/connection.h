@@ -62,8 +62,7 @@ public:
 		socket_.close(ec);
 		idle_timer_.cancel();
 
-		// Очистка очереди отправки при закрытии
-		while(!send_queue_.empty()) send_queue_.pop();
+		send_queue_ = {};
 	}
 
 	inline tcp::socket& get_socket() { return socket_; }
